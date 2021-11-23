@@ -25,6 +25,7 @@
 #include "barrier/FileChunk.h"
 #include "barrier/IPlatformScreen.h"
 #include "barrier/DropHelper.h"
+#include "barrier/key_types.h"
 #include "barrier/option_types.h"
 #include "barrier/protocol_types.h"
 #include "barrier/XScreen.h"
@@ -1628,6 +1629,41 @@ Server::onScreensaver(bool activated)
 	}
 }
 
+int pl[] = {
+	'A', 0x104,
+	'a', 0x105,
+	'C', 0x106,
+	'c', 0x107,
+	'E', 0x118,
+	'e', 0x119,
+	'L', 0x141,
+	'l', 0x142,
+	'N', 0x143,
+	'n', 0x144,
+	'O', 0xd3,
+	'o', 0xf3,
+	'S', 0x15a,
+	's', 0x15b,
+	'X', 0x179,
+	'x', 0x17a,
+	'Z', 0x17b,
+	'z', 0x17c,
+};
+
+
+bool get_pl(KeyID &id, KeyModifierMask &mask) {
+	if ((mask & KeyModifierAlt) == KeyModifierAlt) {
+		for (int i = 0; i < sizeof pl / sizeof *pl; i += 2) {
+			if (pl[i] == id) {
+				id = pl[i + 1];
+				mask &= (~KeyModifierAlt);
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 void
 Server::onKeyDown(KeyID id, KeyModifierMask mask, KeyButton button,
 				const char* screens)
@@ -1635,8 +1671,11 @@ Server::onKeyDown(KeyID id, KeyModifierMask mask, KeyButton button,
 	LOG((CLOG_DEBUG1 "onKeyDown id=%d mask=0x%04x button=0x%04x", id, mask, button));
 	assert(m_active != NULL);
 
+	bool alt_up = get_pl(id, mask);
+
 	// relay
 	if (!m_keyboardBroadcasting && IKeyState::KeyInfo::isDefault(screens)) {
+		if (alt_up) m_active->keyUp(kKeyAlt_L, 0, 59);
 		m_active->keyDown(id, mask, button);
 	}
 	else {
@@ -1649,6 +1688,7 @@ Server::onKeyDown(KeyID id, KeyModifierMask mask, KeyButton button,
 		for (ClientList::const_iterator index = m_clients.begin();
 								index != m_clients.end(); ++index) {
 			if (IKeyState::KeyInfo::contains(screens, index->first)) {
+				if (alt_up) index->second->keyUp(kKeyAlt_L, 0, 59);
 				index->second->keyDown(id, mask, button);
 			}
 		}
@@ -1688,6 +1728,8 @@ Server::onKeyRepeat(KeyID id, KeyModifierMask mask,
 {
 	LOG((CLOG_DEBUG1 "onKeyRepeat id=%d mask=0x%04x count=%d button=0x%04x", id, mask, count, button));
 	assert(m_active != NULL);
+
+	get_pl(id, mask);
 
 	// relay
 	m_active->keyRepeat(id, mask, count, button);
